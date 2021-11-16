@@ -85,6 +85,7 @@ class PSTextureStimulus(TextureBasedVisualStimulus):
                                          fieldsize_x, 
                                          fieldsize_y,
                                          libpath)
+        #scale = 255/ (numpy.max(im) - numpy.min(im))
         scale = 2. * self.background_luminance/ (numpy.max(im) - numpy.min(im))
         im = (im - numpy.min(im)) * scale
         im = im.astype(numpy.uint8)
@@ -98,6 +99,88 @@ class PSTextureStimulus(TextureBasedVisualStimulus):
 
         while True:
             yield (im, [0])
+
+class PSTextureStimulus2(TextureBasedVisualStimulus):
+    """
+    A stimulus generated using the Portilla-Simoncelli algorithm (see textureLib/textureBasedStimulus.m)
+    with statistics matched to the original image according to the Type.
+    It is presented for *stimulus_duration* milliseconds. For the remaining time,
+    until the *duration* of the stimulus, constant *background_luminance*
+    is displayed..
+
+    Types:
+        0 - original image
+        1 - naturalistic texture image (matched higher order statistics)
+        2 - spectrally matched noise (matched marginal statistics only).
+
+    Notes
+    -----
+    frames_number - the number of frames for which each image is presented
+
+    ALERT!!!
+
+    Because of optimization issues, the stimulus is not re-generated on every trial.
+    We should add new 'empty' paramter to replace trial to force recalculaton of the stimuls.
+    """
+
+    stats_type = SNumber(dimensionless,bounds=[0,3],doc="Type of statistial matching of the stimulus")
+    sample = SNumber(dimensionless,doc="Index of the stimulus in its texture family")
+
+    def frames(self):
+        fieldsize_x = self.size_x * self.density
+        fieldsize_y = self.size_y * self.density
+        folder_name = Global.root_directory + "/TextureImagesStimuli"
+        import matplotlib.image as mpimg
+        im = mpimg.imread(self.texture_path)
+
+        numpy.set_printoptions(threshold=sys.maxsize)
+        print('Test',flush=True)
+        print(self.texture_path,flush=True)
+        print(self.stats_type,flush=True)
+        print(numpy.max(im),True)
+        print(numpy.min(im),True)
+        print(im.shape, flush = True)
+        print(im, flush = True)
+
+        im = Image.open(self.texture_path)
+        print('Test',flush=True)
+        print(self.texture_path,flush=True)
+        print(self.stats_type,flush=True)
+        print(numpy.max(im),True)
+        print(numpy.min(im),True)
+        print(im.size, flush = True)
+        print(im, flush = True)
+
+        im = im.resize((int(fieldsize_x),int(fieldsize_y)))
+        print('Test',flush=True)
+        print(self.texture_path,flush=True)
+        print(self.stats_type,flush=True)
+        print(numpy.max(im),True)
+        print(numpy.min(im),True)
+        print(im.size, flush = True)
+        print(im, flush = True)
+
+        #scale = 255/ (numpy.max(im) - numpy.min(im))
+        scale = 2. * self.background_luminance/ (numpy.max(im) - numpy.min(im))
+        im = (im - numpy.min(im)) * scale
+        print(numpy.max(im))
+        print(numpy.min(im))
+        print(im, flush = True)
+        im = im.astype(numpy.uint8)
+        print(numpy.max(im))
+        print(numpy.min(im))
+        print(im, flush = True)
+
+        if not os.path.exists(folder_name):
+            os.mkdir(folder_name)
+
+        IM = Image.fromarray(im)
+        IM.save(folder_name + "/" + self.texture + "sample" + str(self.sample) + "type" + str(self.stats_type) + '.pgm')
+        assert (im.shape == (fieldsize_x, fieldsize_y)), "Image dimensions do not correspond to visual field size"
+
+        while True:
+            yield (im, [0])
+
 
 class PSTextureStimulusDisk(TextureBasedVisualStimulus):
     """

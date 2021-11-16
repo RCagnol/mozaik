@@ -1703,6 +1703,8 @@ class MeasureTextureSensitivityFullfield(VisualExperiment):
             mozaik.rng.shuffle(stimuli_list)
             randomized_images, randomized_types, randomized_samples, randomized_trials = zip(*stimuli_list)
         
+            logger.info('The Stimuli are presentend in the follwing order')
+            logger.info(stimuli_list)
             f = open(Global.root_directory +'/stimuli_order','w')
             f.write(str(stimuli_list))
             f.close()
@@ -1750,6 +1752,138 @@ class MeasureTextureSensitivityFullfield(VisualExperiment):
     def do_analysis(self, data_store):
         pass         
 
+class MeasureTextureSensitivityFullfield2(VisualExperiment):
+    """
+    Measure sensitivity to second order image correlations using stimuli
+    based on a texture image.
+    This experiment will show a series of texture based images
+    that vary in matched statistics.
+    
+    Parameters
+    ----------
+    model : Model
+          The model on which to execute the experiment.
+    Other parameters
+    ----------------
+    num_images: int
+               The number of samples generated for each texture family
+
+    folder_path: str
+               The path of of the folder containing the original naturalistic images
+
+    images: list
+               The names of the pgm files containing the original naturalistic images
+
+    duration : float
+               The duration of the presentation of a single image
+    
+    types : list(int) 
+              List of types indicating which statistics to match:
+                0 - original image
+                1 - naturalistic texture image (matched higher order statistics)
+                2 - spectrally matched noise (matched marginal statistics only).
+    
+    num_trials : int
+               Number of trials each each stimulus is shown.
+
+    random : bool 
+               Whether to present stimuli in a random order or not
+
+    size_x : float
+              The size of the stimulus on the x-axis 
+
+    size_y : float
+              The size of the stimulus on the y-axis 
+
+
+    """
+
+    required_parameters = ParameterSet({
+            'num_images': int, #n. of images of each type, different synthesized instances
+            'folder_path' : str,
+            'images': list,
+            'duration' : float,
+            'types' : list,
+            'num_trials' : int, #n. of same instance
+            'random': bool, # Whether to present stimuli in a random order or not
+            'size_x': float, # The size of the stimulus on the x-axis
+            'size_y': float, # The size of the stimulus on the y-axis
+    })
+
+    def __init__(self,model,parameters):
+        # we place this import here to avoid the need for octave dependency unless this experiment is actually used.
+        import mozaik.stimuli.vision.texture_based as textu #vf
+        VisualExperiment.__init__(self, model,parameters)
+        #images = self.parameters.images * len(self.parameters.types) * self.parameters.num_images * self.parameters.num_trials
+        #types = self.parameters.types * len(self.parameters.images) * self.parameters.num_images * self.parameters.num_trials
+        #samples = list(range(0, self.parameters.num_images)) * len(self.parameters.types) * len(self.parameters.images) * self.parameters.num_trials
+        #trials = list(range(0, self.parameters.num_trials)) * len(self.parameters.types) * len(self.parameters.images) * self.parameters.num_images
+
+        if self.parameters.random:
+            images = self.parameters.images * len(self.parameters.types) * self.parameters.num_images * self.parameters.num_trials
+            types = [t for t in self.parameters.types for _ in self.parameters.images] * self.parameters.num_images * self.parameters.num_trials
+            samples = [i for i in range(self.parameters.num_images) for _ in self.parameters.images * len(self.parameters.types)] * self.parameters.num_trials
+            trials = [i for i in range(self.parameters.num_trials) for _ in self.parameters.images * len(self.parameters.types) * self.parameters.num_images]
+            stimuli_list = list(zip(images, types, samples, trials))
+            mozaik.rng.shuffle(stimuli_list)
+            randomized_images, randomized_types, randomized_samples, randomized_trials = zip(*stimuli_list)
+
+            logger.info('The Stimuli are presentend in the follwing order')
+            logger.info(stimuli_list)
+            f = open(Global.root_directory +'/stimuli_order','w')
+            f.write(str(stimuli_list))
+            f.close()
+
+            for image, stats_type, sample, trial in stimuli_list:
+                if stats_type == 1:
+                    typestr = 'tex'
+                else:
+                    typestr = 'noise'
+                im = textu.PSTextureStimulus2(
+                        frame_duration = self.frame_duration,
+                        duration=self.parameters.duration,
+                        trial=trial,
+                        background_luminance=self.background_luminance,
+                        density=self.density,
+                        location_x=0.0,
+                        location_y=0.0,
+                        sample=sample,
+                        size_x=self.parameters.size_x,
+                        size_y=self.parameters.size_y,
+                        texture_path = self.parameters.folder_path+typestr+'-320x320-'+image+'-smp'+str(sample+1)+'.png',
+                        texture = image,
+                        stats_type = stats_type)
+                self.stimuli.append(im)
+
+        else:
+            for image in self.parameters.images:
+                for ty, t in enumerate(self.parameters.types):
+                 for i in range(0, self.parameters.num_images):
+                     for k in range(0, self.parameters.num_trials):
+                       if stats_type == 1:
+                         typestr = 'tex'
+                       else:
+                         typestr = 'noise'
+                       im = textu.PSTextureStimulus2(
+                           frame_duration = self.frame_duration,
+                           duration=self.parameters.duration,
+                           trial=trial,
+                           background_luminance=self.background_luminance,
+                           density=self.density,
+                           location_x=0.0,
+                           location_y=0.0,
+                           sample=sample,
+                           size_x=self.parameters.size_x,
+                           size_y=self.parameters.size_y,
+                           texture_path = self.parameters.folder_path+typestr+'-320x320-'+image+'-smp'+str(sample+1)+'.png',
+                           texture = image,
+                           stats_type = stats_type)
+                       self.stimuli.append(im)
+
+
+
+    def do_analysis(self, data_store):
+        pass
 
 
 class MeasureTextureSizeTuning(VisualExperiment):
