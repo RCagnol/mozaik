@@ -313,17 +313,28 @@ class Depolarization(DirectStimulator):
         population_selector = load_component(self.parameters.population_selector.component)
         ids = population_selector(sheet,self.parameters.population_selector.params).generate_idd_list_of_neurons()
         d = dict((j,i) for i,j in enumerate(self.sheet.pop.all_cells))
-        to_stimulate_indexes = [d[i] for i in ids]
+        self.to_stimulate_indexes = [d[i] for i in ids]
         
-        self.scs = self.sheet.sim.StepCurrentSource(times=[0.0], amplitudes=[0.0])
-        for i in to_stimulate_indexes:
-            self.sheet.pop.all_cells[i].inject(self.scs)
+        if self.sheet.parameters.cell.model[-6:] == '_Istep':
+            self.integrated_cs = True
+        else:
+            self.scs = self.sheet.sim.StepCurrentSource(times=[0.0], amplitudes=[0.0])
+            for i in self.to_stimulate_indexes:
+                self.sheet.pop.all_cells[i].inject(self.scs)
 
     def prepare_stimulation(self,duration,offset):
-        self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[self.parameters.current],copy=False)
+        if self.integrated_cs:
+            for i in self.to_stimulate_indexes:
+                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+self.sheet.dt*3], I_step=[self.parameters.current])
+        else:
+            self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[self.parameters.current],copy=False)
         
     def inactivate(self,offset):
-        self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[0.0],copy=False)
+        if self.integrated_cs:
+            for i in self.to_stimulate_indexes:
+                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+self.sheet.dt*3], I_step=[0.0])
+        else:
+            self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[0.0],copy=False)
 
 
 
@@ -480,23 +491,34 @@ class LocalStimulatorArray(DirectStimulator):
         
         self.stimulation_duration = numpy.shape(self.mixed_signals)[1] * self.parameters.current_update_interval
         
-        if shared_scs != None:
-           self.scs = shared_scs
+        if self.sheet.parameters.cell.model[-6:] == '_Istep':
+            self.integrated_cs = True
         else:
-           self.scs = [self.sheet.sim.StepCurrentSource(times=[0.0], amplitudes=[0.0]) for cell in self.sheet.pop.all_cells] 
-           for cell,scs in zip(self.sheet.pop.all_cells,self.scs):
-               cell.inject(scs)
+            if shared_scs != None:
+               self.scs = shared_scs
+            else:
+               self.scs = [self.sheet.sim.StepCurrentSource(times=[0.0], amplitudes=[0.0]) for cell in self.sheet.pop.all_cells] 
+               for cell,scs in zip(self.sheet.pop.all_cells,self.scs):
+                   cell.inject(scs)
 
     def prepare_stimulation(self,duration,offset):
         assert self.stimulation_duration == duration, "stimulation_duration != duration :"  + str(self.stimulation_duration) + " " + str(duration)
         times = numpy.arange(0,self.stimulation_duration,self.parameters.current_update_interval) + offset
         times[0] = times[0] + 3*self.sheet.dt
-        for i in range(0,len(self.scs)):
-            self.scs[i].set_parameters(times=Sequence(times), amplitudes=Sequence(self.mixed_signals[i,:].flatten()),copy=False)
+        if self.integrated_cs:
+            for i in self.sheet.pop.all_cells:
+                self.sheet.pop.all_cells[i].set_parameters(t_step=Sequence(times), I_step=Sequence(self.mixed_signals[i,:].flatten()))
+        else:
+            for i in range(0,len(self.scs)):
+                self.scs[i].set_parameters(times=Sequence(times), amplitudes=Sequence(self.mixed_signals[i,:].flatten()),copy=False)
 
     def inactivate(self,offset):
-        for scs in self.scs:
-            scs.set_parameters(times=[offset+3*self.sheet.dt], amplitudes=[0.0],copy=False)
+        if self.integrated_cs:
+            for i in self.sheet.pop.all_cells:
+                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+3*self.sheet.dt], I_step=[0.0])
+        else:
+            for scs in self.scs:
+                scs.set_parameters(times=[offset+3*self.sheet.dt], amplitudes=[0.0],copy=False)
 
 def ChRsystem(y,time,X,sampling_period):
           PhoC1toO1 = 1.0993e-19 * 50
