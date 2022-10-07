@@ -46,7 +46,7 @@ class RetinalUniformSheet(Sheet):
         #rs = space.Grid2D(aspect_ratio=1, dx=parameters.sx/parameters.density, dy=parameters.sy/parameters.density, x0=-parameters.sx/2,y0=-parameters.sy/2,z=0.0)
         if self.parameters.cell.native_nest:
             self.pop = self.sim.Population(int(parameters.sx * parameters.sy * parameters.density),
-                                               self.simnative_cell_type(self.parameters.cell.model),
+                                               self.sim.native_cell_type(self.parameters.cell.model),
                                                self.parameters.cell.params,
                                                structure=rs,
                                                initial_values=self.parameters.cell.initial_values,
@@ -245,7 +245,7 @@ class VisualCorticalUniformSheet3D(VisualCorticalUniformSheet):
 
         if self.parameters.cell.native_nest:
             self.pop = self.sim.Population(int(parameters.sx * parameters.sy/1000000 * parameters.density),
-                                               native_cell_type(self.parameters.cell.model),
+                                               self.sim.native_cell_type(self.parameters.cell.model),
                                                self.parameters.cell.params,
                                                structure=rs,
                                                initial_values=self.parameters.cell.initial_values,

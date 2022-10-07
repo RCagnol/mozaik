@@ -15,7 +15,6 @@ from mozaik.tools.mozaik_parametrized import MozaikParametrized
 from parameters import ParameterSet
 from builtins import zip
 from collections import OrderedDict
-#import nest
 
 logger = mozaik.getMozaikLogger()
 
@@ -389,7 +388,7 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
         sim = self.model.sim
         self.pops = OrderedDict()
 
-        if self.parameters.cell.model[-6:] == '_Istep':
+        if self.parameters.cell.model[-3:] == '_sc':
             self.integrated_cs = True
         else:
             self.integrated_cs = False
@@ -573,6 +572,11 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
 
         ts = self.model.sim.get_time_step()
 
+        if offset > 0:
+            new_offset = offset + ts
+        else:
+            new_offset = offset
+
         for rf_type in self.rf_types:
             assert isinstance(input_currents[rf_type], list)
 
@@ -581,17 +585,18 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
                                                                 zip(self.sheets[rf_type].pop,
                                                                     input_currents[rf_type])):
                     assert isinstance(input_current, dict)
-                    t = input_current['times'] + offset
+                    t = input_current['times'] + new_offset
                     a = self.parameters.linear_scaler * input_current['amplitudes']
-                    tt = numpy.arange(0, duration, ts) + offset
+                    tt = numpy.arange(0, duration, ts) + new_offset
                     amplitudes = (self.parameters.noise.mean
                                    + self.parameters.noise.stdev
                                        * self.ncs_rng[rf_type][i].randn(len(tt)))
                     dt_ratio = int(tt.shape[0]/t.shape[0])
                     for j in range(len(t)):
                         amplitudes[dt_ratio*j:dt_ratio*(j+1)] += a[j]
-                    lgn_cell.set_parameters(t_step=tt, I_step=amplitudes)
-                    #nest.SetStatus(lgn_cell.node_collection, {'t_step':tt, 'I_step':amplitudes*1000})
+
+                    lgn_cell.set_parameters(amplitude_times=tt, amplitude_values=amplitudes*1000)
+
             else:
                 for i, (lgn_cell, input_current, scs, ncs) in enumerate(
                                                                 zip(self.sheets[rf_type].pop,
@@ -655,6 +660,10 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
         times = numpy.array([offset,duration-visual_space.update_interval+offset])#numpy.arange(0, duration, visual_space.update_interval) + offset
         zers = times*0
         ts = self.model.sim.get_time_step()
+        if offset > 0:
+            new_offset = offset + ts
+        else:
+            new_offset = offset
         
         input_cells = OrderedDict()
         for rf_type in self.rf_types:
@@ -673,13 +682,12 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
 
                 if self.integrated_cs:
                     for i, lgn_cell in enumerate(self.sheets[rf_type].pop):
-                        t = numpy.arange(0, duration, ts) + offset
+                        t = numpy.arange(0, duration, ts) + new_offset
                         noise_amplitudes = (self.parameters.noise.mean
                                         + self.parameters.noise.stdev
                                            * self.ncs_rng[rf_type][i].randn(len(t)))
 
-                        #nest.SetStatus(lgn_cell.node_collection, {'t_step':t, 'k_step':0, 'n_step':len(t), 'I_step':(amplitude+amplitudes)*1000})
-                        lgn_cell.set_parameters(t_step=t, I_step=amplitude+noise_amplitudes)
+                        lgn_cell.set_parameters(amplitude_times=t, amplitude_values=(amplitude+noise_amplitudes)*1000)
                 
                 else:
                     for i, (scs, ncs) in enumerate(zip(self.scs[rf_type],self.ncs[rf_type])):
