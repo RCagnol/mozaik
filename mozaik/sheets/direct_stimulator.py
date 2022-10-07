@@ -315,7 +315,7 @@ class Depolarization(DirectStimulator):
         d = dict((j,i) for i,j in enumerate(self.sheet.pop.all_cells))
         self.to_stimulate_indexes = [d[i] for i in ids]
         
-        if self.sheet.parameters.cell.model[-6:] == '_Istep':
+        if self.sheet.parameters.cell.model[-3:] == '_sc':
             self.integrated_cs = True
         else:
             self.scs = self.sheet.sim.StepCurrentSource(times=[0.0], amplitudes=[0.0])
@@ -325,14 +325,14 @@ class Depolarization(DirectStimulator):
     def prepare_stimulation(self,duration,offset):
         if self.integrated_cs:
             for i in self.to_stimulate_indexes:
-                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+self.sheet.dt*3], I_step=[self.parameters.current])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*4], amplitude_values=[self.parameters.current])
         else:
             self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[self.parameters.current],copy=False)
         
     def inactivate(self,offset):
         if self.integrated_cs:
             for i in self.to_stimulate_indexes:
-                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+self.sheet.dt*3], I_step=[0.0])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*4], amplitude_values=[0.0])
         else:
             self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[0.0],copy=False)
 
@@ -491,7 +491,7 @@ class LocalStimulatorArray(DirectStimulator):
         
         self.stimulation_duration = numpy.shape(self.mixed_signals)[1] * self.parameters.current_update_interval
         
-        if self.sheet.parameters.cell.model[-6:] == '_Istep':
+        if self.sheet.parameters.cell.model[-3:] == '_sc':
             self.integrated_cs = True
         else:
             if shared_scs != None:
@@ -507,7 +507,7 @@ class LocalStimulatorArray(DirectStimulator):
         times[0] = times[0] + 3*self.sheet.dt
         if self.integrated_cs:
             for i in self.sheet.pop.all_cells:
-                self.sheet.pop.all_cells[i].set_parameters(t_step=Sequence(times), I_step=Sequence(self.mixed_signals[i,:].flatten()))
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=Sequence(times+self.sheet.dt), amplitude_values=Sequence(self.mixed_signals[i,:].flatten()))
         else:
             for i in range(0,len(self.scs)):
                 self.scs[i].set_parameters(times=Sequence(times), amplitudes=Sequence(self.mixed_signals[i,:].flatten()),copy=False)
@@ -515,7 +515,7 @@ class LocalStimulatorArray(DirectStimulator):
     def inactivate(self,offset):
         if self.integrated_cs:
             for i in self.sheet.pop.all_cells:
-                self.sheet.pop.all_cells[i].set_parameters(t_step=[offset+3*self.sheet.dt], I_step=[0.0])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+4*self.sheet.dt], amplitude_values=[0.0])
         else:
             for scs in self.scs:
                 scs.set_parameters(times=[offset+3*self.sheet.dt], amplitudes=[0.0],copy=False)
