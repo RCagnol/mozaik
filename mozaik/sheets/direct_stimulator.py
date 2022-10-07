@@ -325,14 +325,14 @@ class Depolarization(DirectStimulator):
     def prepare_stimulation(self,duration,offset):
         if self.integrated_cs:
             for i in self.to_stimulate_indexes:
-                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*4], amplitude_values=[self.parameters.current])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*3], amplitude_values=[self.parameters.current])
         else:
             self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[self.parameters.current],copy=False)
         
     def inactivate(self,offset):
         if self.integrated_cs:
             for i in self.to_stimulate_indexes:
-                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*4], amplitude_values=[0.0])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+self.sheet.dt*3], amplitude_values=[0.0])
         else:
             self.scs.set_parameters(times=[offset+self.sheet.dt*3], amplitudes=[0.0],copy=False)
 
@@ -507,7 +507,7 @@ class LocalStimulatorArray(DirectStimulator):
         times[0] = times[0] + 3*self.sheet.dt
         if self.integrated_cs:
             for i in self.sheet.pop.all_cells:
-                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=Sequence(times+self.sheet.dt), amplitude_values=Sequence(self.mixed_signals[i,:].flatten()))
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=Sequence(times), amplitude_values=Sequence(self.mixed_signals[i,:].flatten()))
         else:
             for i in range(0,len(self.scs)):
                 self.scs[i].set_parameters(times=Sequence(times), amplitudes=Sequence(self.mixed_signals[i,:].flatten()),copy=False)
@@ -515,7 +515,7 @@ class LocalStimulatorArray(DirectStimulator):
     def inactivate(self,offset):
         if self.integrated_cs:
             for i in self.sheet.pop.all_cells:
-                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+4*self.sheet.dt], amplitude_values=[0.0])
+                self.sheet.pop.all_cells[i].set_parameters(amplitude_times=[offset+3*self.sheet.dt], amplitude_values=[0.0])
         else:
             for scs in self.scs:
                 scs.set_parameters(times=[offset+3*self.sheet.dt], amplitudes=[0.0],copy=False)
