@@ -214,9 +214,9 @@ class CellWithReceptiveField(object):
         
         # initialize with the Sum[] k_j.B components
         self.background_luminance = background_luminance
-        self.response = numpy.zeros((self.response_length,))
         self.contrast_response = numpy.zeros((self.response_length,))
         self.luminance_response = numpy.zeros((self.response_length,))
+        self.mean = numpy.zeros((self.response_length,))
         L = self.receptive_field.kernel_duration
         if not hasattr(self.receptive_field,"luminance_component"):
             rf = self.receptive_field
