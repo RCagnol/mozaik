@@ -304,6 +304,24 @@ class Null(TopographicaBasedVisualStimulus):
                    [self.frame_duration])
 
 
+class PixelImpulse(TopographicaBasedVisualStimulus):
+    relative_luminance = SNumber(dimensionless, doc="")
+    x = SNumber(dimensionless, doc="x coordinate of pixel")
+    y = SNumber(dimensionless, doc="y coordinate of pixel")
+
+    def frames(self):
+        blank = imagen.Constant(
+            scale=self.background_luminance,
+            bounds=imagen.image.BoundingBox(radius=self.size_x / 2),
+            xdensity=self.density,
+            ydensity=self.density,
+        )()
+        impulse = blank.copy()
+        impulse[self.x, self.y] *= 1 + self.relative_luminance
+        yield (impulse, [self.frame_duration])
+        while True:
+            yield (impulse, [self.frame_duration])
+
 class MaximumDynamicRange(TransferFn):
     """
     It linearly maps 0 to the minimum of the image and 1.0 to the maximum in the image.
@@ -1176,6 +1194,7 @@ class ContinuousGaborMovementAndJump(GaborStimulus):
     movement_angle = SNumber(rad, period=2*pi, bounds=[0,2*pi], doc="Incidence angle of the moving patch to the center patch.")
     moving_gabor_orientation_radial = SNumber(dimensionless, doc = "Boolean string, radial or cross patch")
     center_flash_duration = SNumber(ms, doc="Duration of flashing the Gabor patch in the center.")
+    neuron_id = SNumber(dimensionless, default=0, doc="ID of measured neuron. Required to pair recordings to stimuli.")
 
     def frames(self):
         assert self.movement_duration >= 2*self.frame_duration, "Movement must be at least 2 frames long"
@@ -1241,6 +1260,8 @@ class RadialGaborApparentMotion(GaborStimulus):
     random = SNumber(dimensionless, default=False, doc = "Boolean string - if True, random shuffle the locations and flash times of Gabor patches.")
     flash_center = SNumber(dimensionless, doc = "Boolean string, flash in center or not")
     centrifugal = SNumber(dimensionless, default=False, doc = "Boolean string - if True, patches move out from the center, rather than towards it.")
+    identifier = SString(default="", doc="Stimulus identifier, can be used for grouping stimuli at the analysis stage.")
+    neuron_id = SNumber(dimensionless, default=0, doc="ID of measured neuron. Required to pair recordings to stimuli.")
 
     def is_overlapping(self,x0, y0, x1, y1, diameter):
         return (x0-x1)**2 + (y0-y1)**2 < diameter**2
@@ -1249,6 +1270,10 @@ class RadialGaborApparentMotion(GaborStimulus):
         """
         Sets positions of overlapping Gabors to NaN, except ones
         """
+        # If start_angle == end_angle, it will overlap, but we don't want to delete it
+        if x_pos.shape[1] == 1:
+            return x_pos, y_pos
+
         # Test overlap of patches on same eccentricity
         for i in range(x_pos.shape[0]):
             for j in range(x_pos.shape[1]):
@@ -1272,6 +1297,7 @@ class RadialGaborApparentMotion(GaborStimulus):
                     np.isclose(angles[j] % np.pi, allowed_orientation_axes)
                 )
                 if (overlap_0 or overlap_1) and not allowed_orientation:
+                    print("Removing (%.2f,%.2f)" % (x_pos[i,j],y_pos[i,j]))
                     x_pos[i, j] = np.nan
                     y_pos[i, j] = np.nan
         return x_pos, y_pos
@@ -1289,7 +1315,8 @@ class RadialGaborApparentMotion(GaborStimulus):
         x_pos = self.x + gabor_diameter * np.outer(radii, np.cos(angles))
         y_pos = self.y + gabor_diameter * np.outer(radii, np.sin(angles))
         n_radii, n_angles = x_pos.shape
-        angles_mat = np.vstack([angles] * n_radii)
+        if self.n_circles > 0:
+            angles_mat = np.vstack([angles] * n_radii)
 
         # Set overlapping Gabor locations to NaN, except the ones we allow,
         # which are the ones with same or perpendicular orientation as the center

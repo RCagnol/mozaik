@@ -7,11 +7,14 @@ import numpy
 import os.path
 import pickle
 import mozaik
+from pyNN import space
 from  mozaik.models.vision import cai97
 from mozaik.space import VisualSpace, VisualRegion
 from mozaik.core import SensoryInputComponent
 from mozaik.sheets.vision import RetinalUniformSheet
+from mozaik.sheets.vision import VisualCorticalUniformSheet
 from mozaik.tools.mozaik_parametrized import MozaikParametrized
+from mozaik.connectors.fast import OneToOneConnector
 from parameters import ParameterSet
 from builtins import zip
 from collections import OrderedDict
@@ -116,7 +119,6 @@ class SpatioTemporalReceptiveField(object):
         self.kernel = kernel
         self.spatial_resolution = dx
         self.temporal_resolution = dt
-        self.reshaped_kernel = self.kernel.reshape(-1,numpy.shape(self.kernel)[2]).T
 
     @property
     def kernel_duration(self):
@@ -213,16 +215,16 @@ class CellWithReceptiveField(object):
         # initialize with the Sum[] k_j.B components
         self.background_luminance = background_luminance
         self.response = numpy.zeros((self.response_length,))
-        self.std = numpy.zeros((self.response_length,))
-        self.mean = numpy.zeros((self.response_length,))
+        self.contrast_response = numpy.zeros((self.response_length,))
+        self.luminance_response = numpy.zeros((self.response_length,))
         L = self.receptive_field.kernel_duration
+        if not hasattr(self.receptive_field,"luminance_component"):
+            rf = self.receptive_field
+            rf.kernel_luminance_component = rf.kernel.mean(axis=(0,1))
+            rf.kernel_contrast_component = rf.kernel - rf.kernel_luminance_component
+            rf.kernel_contrast_component = rf.kernel_contrast_component.reshape(-1,numpy.shape(rf.kernel_contrast_component)[2]).T
         assert L <= self.response_length
         
-        for i in range(L):
-            self.response[i] += background_luminance * self.receptive_field.kernel[:, :, i+1:L].sum()
-        
-        for i in range(L):
-            self.response[-(i+1)] += background_luminance * self.receptive_field.kernel[:, :,0:L-i].sum()
         self.i = 0
     
 
@@ -239,19 +241,21 @@ class CellWithReceptiveField(object):
              remainder)
         To avoid loading the entire image sequence into memory, we build up the response array one frame at a time.
         """
-        view_array = self.visual_space.view(self.visual_region, pixel_size=self.receptive_field.spatial_resolution)
-        self.std[self.i:self.i+self.update_factor] = numpy.std(view_array)
+        view_array = self.visual_space.view(self.visual_region, pixel_size=self.receptive_field.spatial_resolution) / self.background_luminance
         self.mean[self.i:self.i+self.update_factor] = numpy.mean(view_array)
-        time_course = numpy.dot(self.receptive_field.reshaped_kernel,view_array.reshape(-1)[:numpy.newaxis])
 
+        contrast_time_course = numpy.dot(self.receptive_field.kernel_contrast_component,view_array.reshape(-1)[:numpy.newaxis])
+        luminance_time_course = self.receptive_field.kernel_luminance_component * self.mean[self.i] * self.background_luminance
         self.va = view_array
 
 
         if self.update_factor != 1.0:
             for j in range(self.i, self.i+self.update_factor):
-                self.response[j: j+self.receptive_field.kernel_duration] += time_course[:len(self.response[j: j+self.receptive_field.kernel_duration])] #/ self.update_factor
+                self.contrast_response[j: j+self.receptive_field.kernel_duration] += contrast_time_course[:len(self.contrast_response[j: j+self.receptive_field.kernel_duration])]
+                self.luminance_response[j: j+self.receptive_field.kernel_duration] += luminance_time_course[:len(self.luminance_response[j: j+self.receptive_field.kernel_duration])]
         else:
-            self.response[self.i: self.i+self.receptive_field.kernel_duration] += time_course[:len(self.response[self.i: self.i+self.receptive_field.kernel_duration])]
+            self.contrast_response[self.i: self.i+self.receptive_field.kernel_duration] += contrast_time_course[:len(self.contrast_response[self.i: self.i+self.receptive_field.kernel_duration])]
+            self.luminance_response[self.i: self.i+self.receptive_field.kernel_duration] += luminance_time_course[:len(self.luminance_response[self.i: self.i+self.receptive_field.kernel_duration])]
 
         self.i += self.update_factor  # we assume there is only ever 1 visual space used between initializations
 
@@ -262,39 +266,24 @@ class CellWithReceptiveField(object):
         kernel values are dimensionless) by the 'gain', to produce a current in
         nA. Returns a dictionary containing 'times' and 'amplitudes'.
         """
-        k = numpy.squeeze(numpy.mean(numpy.squeeze(numpy.mean(numpy.abs(self.receptive_field.kernel),axis=0)),axis=0))
-        #self.std = numpy.convolve(self.std,k[::-1]/numpy.sqrt(numpy.power(k,2).sum()),mode='same')
-        self.std = numpy.convolve(self.std,k[::-1],mode='same')
-        
         if self.gain_control.non_linear_gain != None:
-            c = numpy.sum(self.receptive_field.kernel.flatten())*self.mean
-            L = self.receptive_field.kernel_duration
-            for i in range(L):
-                c[i] += (self.background_luminance - numpy.mean(self.mean[:L])) * self.receptive_field.kernel[:, :, i+1:L].sum()  
-            
-            for i in range(L):
-                c[-(i+1)] += (self.background_luminance - numpy.mean(self.mean[-L:])) * self.receptive_field.kernel[:, :,0:L-i].sum()
-                
-            ta = self.gain_control.gain * (self.response-c) / (self.gain_control.non_linear_gain.contrast_scaler*self.std+1.0)  
-            tb = self.gain_control.non_linear_gain.luminance_gain * c / (self.gain_control.non_linear_gain.luminance_scaler*self.mean+1.0)
-            response = (ta+tb)[:-self.receptive_field.kernel_duration]  # remove the extra padding at the end                             
-        # current response
+            contrast_response = self.gain_control.non_linear_gain.contrast_gain * self.contrast_response / (numpy.abs(self.contrast_response) + self.gain_control.non_linear_gain.contrast_scaler)
+            luminance_response = self.gain_control.non_linear_gain.luminance_gain * self.luminance_response / (numpy.abs(self.luminance_response) + self.gain_control.non_linear_gain.luminance_scaler)
+            response = (contrast_response+luminance_response)[:-self.receptive_field.kernel_duration] # remove the extra padding at the end
+            contrast_response=contrast_response[:-self.receptive_field.kernel_duration]
+            luminance_response=luminance_response[:-self.receptive_field.kernel_duration]
         else:
             response = self.gain_control.gain * self.response[:-self.receptive_field.kernel_duration]  # remove the extra padding at the end
         time_points = self.receptive_field.temporal_resolution * numpy.arange(0, len(response))
 
-        #ylab.figure()
-        #ylab.title(str(numpy.shape(self.receptive_field.kernel)))
-        #ylab.subplot(3,1,1)
-        #ylab.imshow(numpy.mean(self.receptive_field.kernel,axis=0))
-        #ylab.title(str(numpy.shape(self.receptive_field.kernel)))
-        #ylab.colorbar()
-        #ylab.subplot(3,1,2)
-        #ylab.imshow(self.va)
-        #ylab.colorbar()
-        #ylab.subplot(3,1,3)
-        #ylab.plot(time_points,response)
-
+        #fig = pylab.figure()
+        #pylab.plot(time_points,contrast_response)
+        #pylab.plot(time_points,luminance_response)
+        #pylab.plot(time_points,response)
+        #pylab.legend(["contrast","luminance","response"])
+        #ntype = "ON" if self.receptive_field.kernel.sum() > 0 else "OFF"
+        #pylab.savefig("lgn_%s_%.2f_%2.f.png" % (ntype,self.x,self.y))
+        #pylab.close(fig)
 
         return {'times': time_points, 'amplitudes': response}
 
@@ -368,9 +357,9 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
                     'non_linear_gain' : ParameterSet({
                         'luminance_gain' : float,
                         'luminance_scaler' : float,
+                        'contrast_gain' : float,
                         'contrast_scaler' : float,
                     })
-                    
                 },
         'noise': ParameterSet({
             'mean': float,
@@ -675,11 +664,8 @@ class SpatioTemporalFilterRetinaLGN(SensoryInputComponent):
         
 
         for rf_type in self.rf_types:
-                if self.parameters.gain_control.non_linear_gain != None:
-                        amplitude = self.parameters.linear_scaler * self.parameters.gain_control.non_linear_gain.luminance_gain * numpy.sum(input_cells[rf_type].receptive_field.kernel.flatten())*visual_space.background_luminance / (self.parameters.gain_control.non_linear_gain.luminance_scaler*visual_space.background_luminance+1.0)   
-                else:
-                        amplitude = self.parameters.linear_scaler * self.parameters.gain_control.gain * numpy.sum(input_cells[rf_type].receptive_field.kernel.flatten())*visual_space.background_luminance
-
+                amplitude = visual_space.background_luminance * input_cells[rf_type].receptive_field.kernel_luminance_component.sum()
+                amplitude = self.parameters.linear_scaler * input_cells[rf_type].gain_control.non_linear_gain.luminance_gain * amplitude / (numpy.abs(amplitude) + input_cells[rf_type].gain_control.non_linear_gain.luminance_scaler)
                 if self.integrated_cs:
                     for i, lgn_cell in enumerate(self.sheets[rf_type].pop):
                         t = numpy.arange(0, duration, ts) + new_offset
