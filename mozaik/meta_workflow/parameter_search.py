@@ -321,12 +321,12 @@ def parameter_search_run_script_distributed_slurm_IoV(simulation_name,master_res
         print(data)
         p.stdin.close()
 
-def parameter_search_run_script_distributed_slurm_UK(simulation_name,master_results_dir,run_script,core_number):
+def parameter_search_run_script_distributed_slurm_UK(simulation_name,master_results_dir,run_script,core_number,path_to_mozaik_env,output_name='analysis'):
     """
     Scheadules the execution of *run_script*, one per each parameter combination of an existing parameter search run.
     Each execution receives as the first commandline argument the directory in which the results for the given
     parameter combination were stored.
-    
+
     Parameters
     ----------
     simulation_name : str
@@ -336,30 +336,38 @@ def parameter_search_run_script_distributed_slurm_UK(simulation_name,master_resu
     run_script : str
                     The name of the script to be run. The directory name of the given parameter combination datastore will be passed to it as the first command line argument.
     core_number : int
-                How many cores to reserve per process.
+                    How many cores to reserve per process.
+    path_to_mozaik_env : str
+                    Path to the "activate" script of the mozaik virtual environment - something like "/home/{your_username}/virt_env/mozaik/bin/activate"
+    output_name : str
+                    Middle part of the name of each output file, full name will be: "slurm_{output_name}-1234.out"
     """
     f = open(master_results_dir+'/parameter_combinations','rb')
     combinations = pickle.load(f)
     f.close()
-    
+
     # first check whether all parameter combinations contain the same parameter names
     assert len(set([tuple(set(comb.keys())) for comb in combinations])) == 1 , "The parameter search didn't occur over a fixed set of parameters"
-    
+
+    # check whether the specified path exists
+    assert os.path.exists(path_to_mozaik_env), "Specified path \"" + str(path_to_mozaik_env) + "\" doesn't exist"
+
     from subprocess import Popen, PIPE, STDOUT
     for i,combination in enumerate(combinations):
-        rdn = master_results_dir+'/'+result_directory_name('ParameterSearch',simulation_name,combination)    
-        p = Popen(['sbatch'] +  ['-o',master_results_dir+"/slurm_analysis-%j.out" ],stdin=PIPE,stdout=PIPE,stderr=PIPE,text=True)
-         
-        # THIS IS A BIT OF A HACK, have to add customization for other people ...            
+        rdn = master_results_dir+'/'+result_directory_name('ParameterSearch',simulation_name,combination)
+        p = Popen(['sbatch'] +  ['-o',master_results_dir+"/slurm_" + output_name + "-%j.out" ],stdin=PIPE,stdout=PIPE,stderr=PIPE,text=True)
+
+        # THIS IS A BIT OF A HACK, have to add customization for other people ...
         data = '\n'.join([
                             '#!/bin/bash',
                             '#SBATCH -J MozaikParamSearchAnalysis',
                             '#SBATCH -c ' + str(core_number),
                             '#SBATCH --hint=nomultithread',
-                            'source /home/antolikjan/virt_env/mozaik-python3/bin/activate',
+                            'source ' + path_to_mozaik_env,
                             'cd ' + os.getcwd(),
                             ' '.join(["python",run_script,"'"+rdn+"'"]  +['>']  + ["'"+rdn +'/OUTFILE_analysis'+str(time.time()) + "'"]),
-                        ]) 
+                        ])
         print(p.communicate(input=data)[0])
         print(data)
         p.stdin.close()
+

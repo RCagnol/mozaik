@@ -519,3 +519,21 @@ class Connections(AnalysisDataStructure):
         self.delays =  numpy.array(delays)[:,:]
         self.source_size = source_size
         self.target_size = target_size
+
+class ValidationTestResult(AnalysisDataStructure):
+    """
+    Data structure holding the result of a SciUnit validation test.
+    instead.
+    Parameters
+    ----------
+    score: SciUnit score - output of the Test.judge method of a Sciunit test
+    """
+
+    def __init__(self, score, **params):
+        AnalysisDataStructure.__init__(self, identifier='ValidationTestResult', analysis_algorithm=str(score.test), sheet_name=str(score.test.sheets), **params)
+        self.test_name= str(score.test)
+        self.observation_value = score.test.observation
+        self.sheet_name = str(score.test.sheets)
+        self.test_score = score.norm_score
+        self.result = score.result()
+
