@@ -360,12 +360,12 @@ def parameter_search_run_script_distributed_slurm_UK(simulation_name,master_resu
         # THIS IS A BIT OF A HACK, have to add customization for other people ...
         data = '\n'.join([
                             '#!/bin/bash',
-                            '#SBATCH -J MozaikParamSearchAnalysis',
+                            '#SBATCH -J ' + output_name,
                             '#SBATCH -c ' + str(core_number),
                             '#SBATCH --hint=nomultithread',
                             'source ' + path_to_mozaik_env,
                             'cd ' + os.getcwd(),
-                            ' '.join(["python",run_script,"'"+rdn+"'"]  +['>']  + ["'"+rdn +'/OUTFILE_analysis'+str(time.time()) + "'"]),
+                            ' '.join(["python",run_script,"'"+rdn+"'"]  +['>']  + ["'"+rdn +'/OUTFILE_'+ output_name +str(time.time()) + "'"]),
                         ])
         print(p.communicate(input=data)[0])
         print(data)

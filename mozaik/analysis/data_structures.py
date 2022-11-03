@@ -524,10 +524,13 @@ class ValidationTestResult(AnalysisDataStructure):
     """
     Data structure holding the result of a SciUnit validation test.
     instead.
+
     Parameters
     ----------
     score: SciUnit score - output of the Test.judge method of a Sciunit test
+
     """
+    observation = SNumber(units=None,default=None,doc="the experimental observation corresponding to this test")
 
     def __init__(self, score, **params):
         AnalysisDataStructure.__init__(self, identifier='ValidationTestResult', analysis_algorithm=str(score.test), sheet_name=str(score.test.sheets), **params)
