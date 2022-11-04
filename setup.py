@@ -28,6 +28,7 @@ setup(
                 'mozaik.stimuli.vision',
                 'mozaik.storage',
                 'mozaik.tools',
+                'mozaik.validation',
                 'mozaik.visualization'
                 ],
     author = "The Mozaik team",

@@ -1,6 +1,6 @@
 import sciunit
-import .sci_capabilities as cap
-import .sci_scores as scores
+import mozaik.validation.sci_capabilities as cap
+import mozaik.validation.sci_scores as scores
 import numpy as np 
 #===============================================================================
 
