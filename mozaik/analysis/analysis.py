@@ -1289,6 +1289,7 @@ class TemporalSTD(Analysis):
       def perform_analysis(self):
           import pandas
           for sheet in self.datastore.sheets():
+              logger.info(sheet)
               dsv = queries.param_filter_query(self.datastore, sheet_name=sheet)
               segs1, stids = colapse(dsv.get_segments(),dsv.get_stimuli(),parameter_list=['trial'],allow_non_identical_objects=True)
               for segs,st in zip(segs1, stids):
@@ -1301,13 +1302,13 @@ class TemporalSTD(Analysis):
                   for seg in segs:
                       for a in seg.analogsignals:
                           index_window = int(a.sampling_rate * self.parameters.time_window)
-                          if a.name =='v' and self.parameters.vm:
+                          if (a.name =='v' or a.name == 'V_m') and self.parameters.vm:
                               vm_std.append([numpy.mean(pandas.Series(a[:,a.annotations['source_ids'].tolist().index(nid)].reshape(-1).magnitude).rolling(index_window).std(ddof=0)) for nid in vm_ids])
 
-                          if a.name =='gsyn_exc' and self.parameters.cond_exc:
+                          if (a.name =='gsyn_exc'  or a.name == 'g_exc') and self.parameters.cond_exc:
                               isyn_std.append([numpy.mean(pandas.Series(a[:,a.annotations['source_ids'].tolist().index(nid)].reshape(-1).magnitude).rolling(index_window).std(ddof=0)) for nid in vm_ids])
 
-                          if a.name =='gsyn_inh' and self.parameters.cond_inh:
+                          if (a.name =='gsyn_inh'  or a.name == 'g_in') and self.parameters.cond_inh:
                               isyn_std.append([numpy.mean(pandas.Series(a[:,a.annotations['source_ids'].tolist().index(nid)].reshape(-1).magnitude).rolling(index_window).std(ddof=0)) for nid in vm_ids])
 
                   if self.parameters.vm:
